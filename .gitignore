@@ -1,0 +1,5 @@
+*/__pycache__
+*.pyc
+KEY.py
+/.idea/jupyter-settings.xml
+/test
