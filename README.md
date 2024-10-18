@@ -46,7 +46,15 @@ To use the tool, follow these steps:
    ```
    pip install -r requirements.txt
    ```
+## Groq
+1. **Create an account and generate an API key on Groq**  
+   Visit [Groq Console](https://console.groq.com/keys) to create your API key.
 
+2. **Create a Python file named `KEY.py` in the PROLIT folder**  
+   Inside the file, define a variable to store your API key as follows:
+   ```python
+   MY_KEY = "YOUR_NEWLY_CREATED_KEY"
+   
 ## Neo4j (Docker)
 
 
@@ -84,7 +92,7 @@ The main file for running the tool is **prolit_run.py**. Below is a description 
 Run PROLIT by specifying the dataset and pipeline you want to use, along with other options:
 
 ```bash
-python prolit_run.py --dataset datasets/car_data.csv --pipeline pipelines/car_pipeline.py --frac 0.1 --granularity_level 3 --entity_type_level 2
+python prolit_run.py --dataset datasets/car_data.csv --pipeline pipelines/car_pipeline.py --frac 0.1 --granularity_level 3
 ```
 ### Arguments
 
