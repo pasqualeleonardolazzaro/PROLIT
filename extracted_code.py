@@ -1,41 +1,54 @@
 
+import sys
+sys.path.append("../../")
+
+import argparse
 import pandas as pd
+from graph.logger import CustomLogger
+import numpy as np
+
+def stratified_sample(df, frac):
+    """
+    Perform stratified sampling on a DataFrame.
+    """
+    if frac > 0.0 and frac < 1.0:
+        # Infer categorical columns for stratification
+        stratify_columns = df.select_dtypes(include=['object']).columns.tolist()
+
+        # Check if any class in stratify columns has fewer than 2 members
+        for col in stratify_columns:
+            value_counts = df[col].value_counts()
+            if value_counts.min() >= 2:
+                # Perform stratified sampling for this column
+                stratified_df = df.groupby(col, group_keys=False).apply(lambda x: x.sample(frac=frac))
+                return stratified_df.reset_index(drop=True)
+
+        # If no suitable stratification column is found, fall back to random sampling
+        sampled_df = df.sample(frac=frac).reset_index(drop=True)
+    else:
+        sampled_df = df
+    return sampled_df
+
 
 def run_pipeline(args, tracker) -> None:
-    
+
     input_path = args.dataset
 
+    # Read the input CSV file into a pandas DataFrame
     df = pd.read_csv(input_path)
-
-    # Sample or replicate the dataframe based on the fraction argument
-    if args.frac > 0.0 and args.frac < 1.0:
-        df = df.sample(frac=args.frac)
-    elif args.frac > 1.0:
-        df = pd.concat([df] * int(args.frac), ignore_index=True)
 
     # Subscribe dataframe
     df = tracker.subscribe(df)
     tracker.analyze_changes(df)
 
-    # Clean and format car price and mileage columns
-    columns = ['car_price', 'car_mileage']
-    for col in columns:
-        df[col] = df[col].apply(lambda x: '{:.1f}k'.format(x / 1000) if x >= 1000 else x)
+    # Separate features and target variable
+    # Remove the last column from the DataFrame
+    df = df.iloc[:, :-1]
     tracker.analyze_changes(df)
 
-    # Drop unnecessary columns
-    df = df.drop(['car_transmission', 'car_drive', 'car_engine_capacity', 'car_engine_hp'], axis=1)
+    # Impute missing values in the numerical column
+    # Replace missing values in the 'Age' column with the mean of the column
+    df['Age'].fillna(df['Age'].mean(), inplace=True)
     tracker.analyze_changes(df)
 
-    # Rename the first column to 'car_id'
-    df.rename(columns={df.columns[0]: 'car_id'}, inplace=True)
-    tracker.analyze_changes(df)
-
-    # Strip whitespace from car brand, model, and city columns
-    cols = ['car_brand', 'car_model', 'car_city']
-    df[cols] = df[cols].applymap(str.strip)
-    tracker.analyze_changes(df)
-
-    # Create a new column 'car_age_category' based on the 'car_age' column
-    df['car_age_category'] = df['car_age'].apply(lambda age: 'New' if age <= 3 else ('Middle' if age <= 9 else 'Old'))
-    tracker.analyze_changes(df)
+    print("Finished")

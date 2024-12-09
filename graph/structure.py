@@ -83,7 +83,7 @@ def create_column(value, index, instance: str = None) -> Dict[str, any]:
         'id': constants.NAMESPACE_COLUMN + str(uuid.uuid4()),
         'value': value,
         'index': index,
-        'instance': instance or []
+        'name': instance or []
     }
 
     return column
