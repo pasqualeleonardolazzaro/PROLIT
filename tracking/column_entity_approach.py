@@ -94,7 +94,7 @@ def column_entitiy_vision(changes, current_activities, args, activity_to_zoom):
                 for column in unique_df1_col:
                     if new_column['index']==column['index'] and new_column['value']==column['value']:
                         derivations_column.append({'gen': str(new_column['id']), 'used': str(column['id'])})
-                        old_col = column['instance']
+                        old_col = column['name']
                         break
             for idx in df2.index:
                 new_value = df2.at[idx, col]
