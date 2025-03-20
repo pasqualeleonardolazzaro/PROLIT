@@ -70,6 +70,9 @@ def run_pipeline(args, tracker) -> None:
                      'foreigner': {'A201': 1, 'A202': 0},
                      'label': {2: 0}})
 
+
+
+
     status_mapping = {
         'A91': 'divorced',
         'A92': 'divorced',
@@ -83,6 +86,8 @@ def run_pipeline(args, tracker) -> None:
     df['personal_status'] = np.where(df.personal_status == 'A92', 0, np.where(df.personal_status == 'A95', 0, 1))
 
     df = df.drop(['personal_status'], axis=1)
+
+
 
     columns = ['checking', 'credit_history', 'purpose', 'savings', 'employment', 'other_debtors', 'property', 'other_inst', 'housing', 'job']
 
