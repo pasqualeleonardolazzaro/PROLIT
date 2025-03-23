@@ -50,6 +50,15 @@ class LLM_formatter:
             kmeans = KMeans(n_clusters = 3, random_state = 0)
             kmeans.fit(X_train_norm)
             tracker.analyze_changes(df)
+            
+            # One-hot encode categorical columns: 'checking', 'credit_history', 'housing', 'job'
+            columns = ['checking', 'credit_history', 'housing', 'job']
+            for i, col in enumerate(columns):
+                dummies = pd.get_dummies(df[col])
+                df_dummies = dummies.add_prefix(col + '_')
+                df = df.join(df_dummies)
+                df = df.drop([col], axis=1)
+            tracker.analyze_changes(df)
 
         Cleaning Pipeline:{pipeline_content}
 

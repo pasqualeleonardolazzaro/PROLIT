@@ -15,9 +15,14 @@ def run_pipeline(args, tracker) -> None:
     # Subscribe dataframe
     df = tracker.subscribe(df)
 
+
+
+
     columns = ['car_price', 'car_mileage']
     for col in columns:
         df[col] = df[col].apply(lambda x: '{:.1f}k'.format(x / 1000) if x >= 1000 else x)
+
+
 
     df = df.drop(['car_transmission', 'car_drive', 'car_engine_capacity', 'car_engine_hp'], axis=1)
 
@@ -25,5 +30,6 @@ def run_pipeline(args, tracker) -> None:
 
     cols = ['car_brand', 'car_model', 'car_city']
     df[cols] = df[cols].applymap(str.strip)
+
     
     df['car_age_category'] = df['car_age'].apply(lambda age: 'New' if age <= 3 else ('Middle' if age <= 9 else 'Old'))
