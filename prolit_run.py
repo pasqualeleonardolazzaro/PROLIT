@@ -9,6 +9,9 @@ from tracking.tracking import ProvenanceTracker
 import argparse
 from KEY import MY_KEY
 from extracted_code import run_pipeline
+import ast
+import textwrap
+import re
 
 
 def wrapper_run_pipeline(arguments, tracker):
@@ -47,8 +50,27 @@ used_columns_giver = LLM_activities_used_columns(api_key = MY_KEY)
 
 #description of each activity. A list of dictionaries like { "act_name" : ("description of the operation", "code of the operation")}
 activities_description = descriptor.descript()
-#print(activities_description)
-activities_description_dict = eval(activities_description.replace("pipeline_operations = ", ""))
+print(activities_description)
+
+# Pulisce il testo
+cleaned = activities_description.replace("pipeline_operations = ", "")
+
+# Rimuove blocchi markdown (```python ... ```) o singola parola 'python'
+cleaned = re.sub(r"```python\\s*", "", cleaned, flags=re.IGNORECASE)
+cleaned = re.sub(r"```", "", cleaned)
+cleaned = re.sub(r"^python\\s*", "", cleaned, flags=re.IGNORECASE | re.MULTILINE)
+
+# Normalizza l'indentazione
+cleaned = textwrap.dedent(cleaned).strip()
+
+# Debug opzionale:
+print("--- Cleaned string ---")
+print(cleaned)
+print("----------------------")
+
+# Parsing sicuro
+activities_description_dict = ast.literal_eval(cleaned)
+
 # print(activities_description_dict)
 
 #Neo4j initialization

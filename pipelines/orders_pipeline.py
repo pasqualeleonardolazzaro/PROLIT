@@ -38,6 +38,8 @@ def run_pipeline(args, tracker) -> None:
     # Subscribe dataframe
     df = tracker.subscribe(df)
 
+
+
     # Separate features and target variable
     df = df.iloc[:, :-1]
 

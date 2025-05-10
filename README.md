@@ -105,5 +105,33 @@ python prolit_run.py --dataset datasets/car_data.csv --pipeline pipelines/car_pi
   - `3`: Full Level
   - `4`: Only Columns Level
 
+## How to Use the GUI (Streamlit)
+
+1. Make sure all dependencies are installed:
+
+```bash
+pip install -r requirements.txt
+```
+
+2. Launch the GUI with Streamlit:
+
+```bash
+streamlit run streamlit_app.py
+```
+
+3. Once running, your browser should open automatically. If not, you can manually navigate to:
+
+```
+http://localhost:8501
+```
+
+4. In the GUI you can:
+- Select a dataset and a pipeline to analyze
+- Choose the granularity level
+- Run PROLIT to generate the graph
+- Open the Neo4j browser to view the graph
+- Use the "Graph Chat" section (via the sidebar) to ask questions in natural language about the graph
+
+
 
 
