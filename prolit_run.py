@@ -8,7 +8,7 @@ from tracking.column_approach import column_vision
 from tracking.tracking import ProvenanceTracker
 import argparse
 from KEY import MY_KEY
-from extracted_code import run_pipeline
+
 import ast
 import textwrap
 import re
@@ -47,6 +47,7 @@ extracted_file = formatter.standardize()
 descriptor = LLM_activities_descriptor(extracted_file, api_key = MY_KEY)
 used_columns_giver = LLM_activities_used_columns(api_key = MY_KEY)
 
+from extracted_code import run_pipeline
 
 #description of each activity. A list of dictionaries like { "act_name" : ("description of the operation", "code of the operation")}
 activities_description = descriptor.descript()
@@ -160,3 +161,5 @@ while loop:
     #     activity_to_zoom = int(answer)
 
 session.close()
+
+

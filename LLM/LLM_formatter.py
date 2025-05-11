@@ -3,6 +3,7 @@ from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
 import re
 import os
+import textwrap  # necessario per rimuovere indentazioni errate
 
 
 class LLM_formatter:
@@ -15,7 +16,7 @@ class LLM_formatter:
 
         #  Template to standardize the preprocessing pipeline
         PIPELINE_STANDARDIZER_TEMPLATE = """
-        Add python comments describing the single existing operations in the pipeline, be the most detailed as possible.Return your response as a complete python file, including both changed and not changed functions, import and sys.path.append("../../")..
+        Add python comments describing the single existing operations in the pipeline, be the most detailed as possible.Return your response as a complete python file, including both changed and not changed functions and import...
         Do not write new lines of code, just add python comments and empty lines related to the code that you read.
 
         Instructions:
@@ -85,19 +86,28 @@ class LLM_formatter:
 
     def standardize(self) -> str:
         response = self.chat_chain.invoke(
-            {"pipeline_content": self.pipeline_content, "question": "Description and Suggestions:"})
-        # Use regular expression to find text between triple quotes
+            {"pipeline_content": self.pipeline_content, "question": "Description and Suggestions:"}
+        )
+
+        # Extract code block between triple backticks
         extracted_text = re.search("```(.*?)```", response["text"], re.DOTALL)
 
         if extracted_text:
-            # Get the matched group from the search
             code_to_write = extracted_text.group(1)
-            # Specify the filename
-            filename = 'extracted_code.py'
 
-            # Write the extracted text to a file
+            # Normalize indentation manually:
+            lines = code_to_write.splitlines()
+            cleaned_lines = [
+                line.lstrip() if line.lstrip().startswith(("import", "def", "class")) else line
+                for line in lines
+            ]
+            code_to_write = "\n".join(cleaned_lines).strip()
+
+            # Write to file
+            filename = 'extracted_code.py'
             with open(filename, 'w') as file:
                 file.write(code_to_write)
+
             print(f"Code has been successfully written to {filename}")
             print(os.path.abspath(filename))
             return str(os.path.abspath(filename))
