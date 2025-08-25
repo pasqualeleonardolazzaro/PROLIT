@@ -1,127 +1,262 @@
-import streamlit as st
+# streamlit_app.py
 import os
+import sys
+import shutil
+import traceback
 import subprocess
-import webbrowser
-from langchain_community.graphs import Neo4jGraph
-from langchain.chains import GraphCypherQAChain
-from langchain.prompts import PromptTemplate
-from langchain_groq import ChatGroq
-from KEY import MY_KEY
+from pathlib import Path
+import streamlit as st
 
-# Titolo
-st.set_page_config(page_title="PROLIT", layout="wide")
+# ====================== CONFIG BASE ======================
+st.set_page_config(page_title="PROLIT Console", layout="wide")
 
-# Sidebar per navigazione
-st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ["Main", "Provenance Chat"])
+BASE_DIR = Path(__file__).parent.resolve()
+os.chdir(BASE_DIR)
 
-# Funzione per inizializzare il chain
-@st.cache_resource
-def init_graph_chain():
-    graph = Neo4jGraph(
-        url="bolt://localhost:7687",
-        username="neo4j",
-        password="adminadmin"
-    )
+EXTRACTED = BASE_DIR / "extracted_code.py"
+EXTRACTED_BAK = BASE_DIR / "extracted_code_llm.py"  # backup del codice generato dall'LLM
 
-    cypher_prompt = PromptTemplate(
-        input_variables=["schema", "question"],
-        template="""
-You are an expert Neo4j Developer translating user questions into Cypher to answer questions about data provenance.
-Convert the user's question based on the schema.
+# Stato persistente Streamlit
+ss = st.session_state
+ss.setdefault("last_rc", None)
+ss.setdefault("stdout", "")
+ss.setdefault("stderr", "")
+ss.setdefault("use_manual", True)     # di default usa il codice manuale se presente
+ss.setdefault("reload_nonce", 0)      # cambia per forzare reload editor
 
-Instructions:
-Use only the provided relationship types and properties in the schema.
-Do not use any other relationship types or properties that are not provided.
+# ====================== NAVIGAZIONE ======================
+st.sidebar.title("PROLIT")
+page = st.sidebar.radio("Navigazione", ["Run PROLIT", "Graph Chat", "Provenance Explorer"], index=0)
+st.sidebar.caption(f"Working dir: {BASE_DIR}")
 
-If no data is returned, do not attempt to answer the question.
-Only respond to questions that require you to construct a Cypher statement.
-Do not include any explanations or apologies in your responses.
+# ====================== HELPERS COMUNI ======================
+def ensure_backup():
+    if EXTRACTED.exists() and not EXTRACTED_BAK.exists():
+        shutil.copy2(EXTRACTED, EXTRACTED_BAK)
 
-Schema: {schema}
-Question: {question}
-"""
-    )
+def save_user_code(text: str):
+    ensure_backup()
+    EXTRACTED.write_text(text, encoding="utf-8")
 
-    llm = ChatGroq(
-        model_name="llama3-70b-8192",
-        groq_api_key= MY_KEY,
-        temperature=0
-    )
+def run_prolit(dataset: str, pipeline: str, frac: str, gran_level: int, use_manual: bool):
+    """Esegue prolit_run.py come da CLI (get_args() lato script gestisce gli argomenti)."""
+    cmd = [
+        sys.executable, "prolit_run.py",
+        "--dataset", dataset,
+        "--pipeline", pipeline,
+        "--frac", str(frac),
+        "--granularity_level", str(gran_level),
+    ]
+    if use_manual:
+        cmd.append("--use_manual_code")  # richiede la patch in get_args() di prolit_run.py
 
-    chain = GraphCypherQAChain.from_llm(
-        llm=llm,
-        graph=graph,
-        cypher_prompt=cypher_prompt,
-        verbose=True
-    )
-    return chain
+    proc = subprocess.run(cmd, capture_output=True, text=True, cwd=BASE_DIR)
+    ss.last_rc = proc.returncode
+    ss.stdout = proc.stdout or ""
+    ss.stderr = proc.stderr or ""
+    return cmd, proc.returncode
 
-# Pagina principale
-if page == "Main":
-    st.title("PROLIT - GUI")
+# ====================== PAGINA: RUN PROLIT ======================
+if page == "Run PROLIT":
+    st.title("Run PROLIT")
 
-    @st.cache_data
-    def get_files():
-        datasets = os.listdir("datasets") if os.path.exists("datasets") else []
-        pipelines = os.listdir("pipelines") if os.path.exists("pipelines") else []
-        return datasets, pipelines
+    # ---- Scansione cartelle per menu a tendina ----
+    datasets_dir = BASE_DIR / "datasets"
+    pipelines_dir = BASE_DIR / "pipelines"
 
-    datasets, pipelines = get_files()
+    dataset_options = sorted(
+        [str(p.relative_to(BASE_DIR)).replace("\\", "/") for p in datasets_dir.glob("*.csv")]
+    ) if datasets_dir.exists() else []
+    pipeline_options = sorted(
+        [str(p.relative_to(BASE_DIR)).replace("\\", "/") for p in pipelines_dir.glob("*.py")]
+    ) if pipelines_dir.exists() else []
 
-    dataset = st.selectbox("Choose a dataset", datasets)
-    pipeline = st.selectbox("Choose a pipeline", pipelines)
-    frac = st.text_input("Enter the dataset sampling frac value", "1.0")
+    # fallback se vuoti
+    if not dataset_options:
+        dataset_options = ["datasets/generated_dataset.csv"]
+    if not pipeline_options:
+        pipeline_options = ["pipelines/orders_pipeline.py"]
 
-    granularity_labels = ["Sketch", "Derivation", "Full", "Only_columns"]
-    granularity_mapping = {"Sketch": 1, "Derivation": 2, "Full": 3, "Only_columns": 4}
-    granularity_label = st.selectbox("Select granularity level", granularity_labels)
-    granularity = granularity_mapping[granularity_label]
+    # ---- Granularity con etichette umane ----
+    granularity_labels = ["Sketch", "Only columns", "Detailed", "Full"]
+    granularity_map = {"Sketch": 0, "Only columns": 1, "Detailed": 2, "Full": 3}
+    default_gran_label = "Only columns"
 
-    if st.button("Run PROLIT"):
-        command = f"python prolit_run.py --dataset datasets/{dataset} --pipeline pipelines/{pipeline} --frac {frac} --granularity_level {granularity}"
-        with st.spinner("Running PROLIT..."):
-            result = subprocess.run(command, shell=True, capture_output=True, text=True)
-            if result.returncode == 0:
-                st.success("✅ Execution succeeded")
+    colA, colB = st.columns(2)
+    with colA:
+        dataset = st.selectbox(
+            "Dataset",
+            dataset_options,
+            index=dataset_options.index("datasets/generated_dataset.csv")
+            if "datasets/generated_dataset.csv" in dataset_options else 0,
+        )
+        frac = st.text_input("Frac", "1")
+    with colB:
+        pipeline = st.selectbox(
+            "Pipeline",
+            pipeline_options,
+            index=pipeline_options.index("pipelines/orders_pipeline.py")
+            if "pipelines/orders_pipeline.py" in pipeline_options else 0,
+        )
+        granularity_label = st.selectbox(
+            "Granularity level",
+            granularity_labels,
+            index=granularity_labels.index(default_gran_label),
+        )
+        granularity = granularity_map[granularity_label]
+
+    st.divider()
+    left, right = st.columns([2, 1])
+    with left:
+        st.checkbox(
+            "Usa codice manuale (extracted_code.py)",
+            value=ss.use_manual,
+            key="use_manual",
+            help="Se attivo, passa --use_manual_code a prolit_run.py (gestito da get_args()).",
+        )
+    with right:
+        if EXTRACTED_BAK.exists():
+            if st.button("Ripristina codice LLM"):
+                shutil.copy2(EXTRACTED_BAK, EXTRACTED)
+                st.success("Ripristinato extracted_code.py dal backup LLM.")
+                ss.reload_nonce += 1
+                st.rerun()
+
+    # ---- Editor nascosto finché non lo espandi ----
+    with st.expander("Editor avanzato: `extracted_code.py` (clicca per espandere)", expanded=False):
+        # ricarica SEMPRE il contenuto da file a ogni rerun
+        if EXTRACTED.exists():
+            try:
+                mtime_ns = EXTRACTED.stat().st_mtime_ns
+            except Exception:
+                mtime_ns = 0
+            editor_key = f"editor_{mtime_ns}_{ss.reload_nonce}"
+            try:
+                file_text = EXTRACTED.read_text(encoding="utf-8")
+            except Exception:
+                file_text = ""
+        else:
+            mtime_ns = 0
+            editor_key = f"editor_{mtime_ns}_{ss.reload_nonce}"
+            file_text = ""
+
+        edited = st.text_area(
+            "Contenuto file",
+            value=file_text,
+            height=350,
+            key=editor_key,  # la chiave cambia quando cambia mtime o nonce -> forzato reload
+        )
+
+        ecol1, ecol2, ecol3 = st.columns([1,1,2])
+        if ecol1.button("💾 Salva"):
+            save_user_code(edited)
+            st.success("Salvato `extracted_code.py`.")
+            ss.reload_nonce += 1
+            st.rerun()
+
+        if ecol2.button("↻ Ricarica da file"):
+            ss.reload_nonce += 1
+            st.rerun()
+
+        ecol3.caption(f"Ultima modifica: {mtime_ns}")
+
+    # ---- Esecuzione ----
+    run_clicked = st.button("▶️ Run PROLIT", type="primary")
+
+    if run_clicked:
+        # forza anche il reload editor al prossimo rerun
+        ss.reload_nonce += 1
+
+        # se usi manuale, salva PRIMA di eseguire (se hai l'editor aperto e modifiche non salvate)
+        # qui non possiamo leggere il valore del text_area senza chiave fissa;
+        # quindi confidiamo che l'utente abbia premuto "Salva".
+        # (scelta intenzionale: vogliamo reload da file a ogni run)
+        with st.status("Esecuzione in corso…", expanded=True) as status:
+            cmd, rc = run_prolit(dataset, pipeline, frac, granularity, ss.use_manual)
+            st.code(" ".join(cmd), language="bash")
+
+            # Fallback automatico se non hai ancora patchato get_args() con --use_manual_code
+            if rc != 0 and ss.use_manual and ("unrecognized arguments" in ss.stderr.lower()):
+                status.update(
+                    label="⚠️ `prolit_run.py` non supporta --use_manual_code (patch get_args() mancante). Rilancio senza flag…",
+                    state="running",
+                )
+                cmd2 = [
+                    sys.executable, "prolit_run.py",
+                    "--dataset", dataset,
+                    "--pipeline", pipeline,
+                    "--frac", str(frac),
+                    "--granularity_level", str(granularity),
+                ]
+                proc2 = subprocess.run(cmd2, capture_output=True, text=True, cwd=BASE_DIR)
+                ss.last_rc = proc2.returncode
+                ss.stdout = proc2.stdout or ""
+                ss.stderr = proc2.stderr or ""
+                st.info("Rilanciato senza flag; verifica che `prolit_run.py` importi/usi `extracted_code.py` manuale.")
+
+            st.subheader("STDOUT")
+            st.code(ss.stdout or "(vuoto)")
+            st.subheader("STDERR")
+            st.code(ss.stderr or "(vuoto)")
+
+            if ss.last_rc == 0:
+                status.update(label="✅ Execution succeeded", state="complete")
             else:
-                st.error("❌ Execution failed")
+                status.update(label=f"❌ Exit code {ss.last_rc}", state="error")
+                st.error("Se necessario, espandi l'editor, salva le modifiche al file e rilancia.")
 
-    if st.button("Open Neo4j Browser"):
-        webbrowser.open("http://localhost:7474/browser/")
+# ====================== PAGINA: GRAPH CHAT ======================
+elif page == "Graph Chat":
+    st.title("Graph Chat (Neo4j)")
 
-# Pagina chat stile ChatGPT
-elif page == "Provenance Chat":
-    st.title("🧠 Chat with the Graph")
-    cypher_chain = init_graph_chain()
+    # Credenziali da env/secrets
+    NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+    NEO4J_USERNAME = os.getenv("NEO4J_USERNAME", "neo4j")
+    NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "password")
+    NEO4J_DATABASE = os.getenv("NEO4J_DATABASE", "neo4j")
 
-    if "chat_history" not in st.session_state:
-        st.session_state.chat_history = []
+    st.caption(f"DB: {NEO4J_DATABASE} @ {NEO4J_URI}")
 
-    with st.chat_message("assistant", avatar="🤖"):
-        st.markdown("Hi! Ask me anything about your Provenance Graph 🧠")
+    try:
+        from langchain_community.graphs import Neo4jGraph
+        graph = Neo4jGraph(
+            url=NEO4J_URI,
+            username=NEO4J_USERNAME,
+            password=NEO4J_PASSWORD,
+            database=NEO4J_DATABASE,
+        )
+    except Exception as e:
+        st.error(f"Connessione Neo4j fallita: {e}")
+        st.stop()
 
-    question = st.chat_input("Ask a question...")
-    new_exchange = None
+    st.write("Inserisci una query Cypher (es.: `MATCH (n) RETURN n LIMIT 5`).")
+    cypher = st.text_area("Cypher", "MATCH (n) RETURN n LIMIT 5", height=120)
 
-    if question:
-        with st.chat_message("user", avatar="👤"):
-            st.markdown(question)
-        with st.chat_message("assistant", avatar="🤖"):
-            with st.spinner("Thinking..."):
-                try:
-                    response = cypher_chain.invoke({"query": question})
-                    result = response["result"]
-                    st.markdown(result)
-                    new_exchange = (question, result)
-                except Exception as e:
-                    st.error(f"Error: {e}")
+    if st.button("Esegui query"):
+        try:
+            res = graph.query(cypher)
+            if isinstance(res, list) and len(res) > 0 and isinstance(res[0], dict):
+                import pandas as pd
+                st.dataframe(pd.DataFrame(res), use_container_width=True)
+            else:
+                st.write(res)
+            st.success("Query eseguita.")
+        except Exception as e:
+            st.error(f"Errore: {e}")
+            st.code(traceback.format_exc())
 
-    for i, (q, r) in enumerate(st.session_state.chat_history):
-        with st.chat_message("user", avatar="👤"):
-            st.markdown(q)
-        with st.chat_message("assistant", avatar="🤖"):
-            st.markdown(r)
+# ====================== PAGINA: PROVENANCE EXPLORER ======================
+elif page == "Provenance Explorer":
+    st.title("Provenance Explorer")
 
-    if new_exchange:
-        st.session_state.chat_history.append(new_exchange)
+    st.write("Apri il Neo4j Browser per esplorare il grafo di provenance:")
+    # link cliccabile
+    st.markdown("[🌐 Apri Neo4j Browser](http://localhost:7474/browser/)")
+
+    # pulsante che apre in nuova scheda
+    if st.button("Apri Neo4j Browser"):
+        st.components.v1.html(
+            "<script>window.open('http://localhost:7474/browser/', '_blank');</script>",
+            height=0,
+            width=0,
+        )

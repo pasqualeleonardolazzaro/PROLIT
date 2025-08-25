@@ -37,13 +37,22 @@ def get_args() -> argparse.Namespace:
                         help="Relative path to the dataset file")
     parser.add_argument("--frac", type=float, default=0.1, help="Sampling fraction [0.0 - 1.0]")
     parser.add_argument("--granularity_level", type=int, default=3, help="Granularity level: 1, 2, 3 or 4")
+    parser.add_argument("--use_manual_code", action="store_true",
+                        help="Usa extracted_code.py manuale invece del codice standardizzato dall'LLM")
+    args, unknown = parser.parse_known_args()
 
     return parser.parse_args()
 
 #Standardize the structure of the file in a way that provenance is tracked
 formatter = LLM_formatter(get_args().pipeline, api_key = MY_KEY)
 #Standardized file given by the LLM
-extracted_file = formatter.standardize()
+#extracted_file = formatter.standardize()
+if get_args().use_manual_code:
+    print("[PROLIT] Using manual extracted_code.py")
+    extracted_file = "extracted_code.py"
+else:
+    print("[PROLIT] Using LLM-standardized code")
+    extracted_file = formatter.standardize()
 descriptor = LLM_activities_descriptor(extracted_file, api_key = MY_KEY)
 used_columns_giver = LLM_activities_used_columns(api_key = MY_KEY)
 
