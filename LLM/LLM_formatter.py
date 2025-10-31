@@ -8,7 +8,7 @@ import textwrap  # necessario per rimuovere indentazioni errate
 
 class LLM_formatter:
 
-    def __init__(self, file_pipeline, api_key: str, temperature: float = 0, model_name: str = "llama3-70b-8192"):
+    def __init__(self, file_pipeline, api_key: str, temperature: float = 0, model_name: str = "llama-3.3-70b-versatile"):
         self.chat = ChatGroq(temperature=temperature, groq_api_key=api_key, model_name=model_name)
 
         # cleaning pipeline in text format

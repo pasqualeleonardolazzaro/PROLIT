@@ -79,7 +79,7 @@ if page == "Run PROLIT":
 
     # ---- Granularity con etichette umane ----
     granularity_labels = ["Sketch", "Only columns", "Detailed", "Full"]
-    granularity_map = {"Sketch": 0, "Only columns": 1, "Detailed": 2, "Full": 3}
+    granularity_map = {"Sketch": 1, "Only columns": 2, "Detailed": 3, "Full": 4}
     default_gran_label = "Only columns"
 
     colA, colB = st.columns(2)
