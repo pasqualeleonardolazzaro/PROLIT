@@ -16,50 +16,58 @@ class LLM_formatter:
 
         #  Template to standardize the preprocessing pipeline
         PIPELINE_STANDARDIZER_TEMPLATE = """
-        Add python comments describing the single existing operations in the pipeline, be the most detailed as possible.Return your response as a complete python file, including both changed and not changed functions and import...
+        Add python comments describing the single existing operations in the pipeline, be the most detailed as possible. Return your response as a complete Python file, including both changed and not changed functions and imports.
+
         Do not write new lines of code, just add python comments and empty lines related to the code that you read.
 
         Instructions:
-        1. Each cleaning operation on the data frame should be conatined in the same block of code without empty lines.
-        2. Do not write new lines of code, just add comments and empty lines. 
+        1. Each cleaning operation on the data frame should be contained in the same block of code without empty lines.
+        2. Do not write new lines of code, just add comments and empty lines.
         3. Each operation on the data frame should be separated by a single empty line.
         4. Consider just the code contained in the run_pipeline function.
         5. Exclusively after the blocks after the subscribe dataframe block for each identified block add at the end, after leaving an empty line a line containing "tracker.analyze_changes(df)"
-        6. Do not comment "tracker.analyze_changes(df)" lines
+        6. Do not comment "tracker.analyze_changes(df)" lines.
 
-        example: 
+        Output format (strict):
+        - Return ONLY raw Python source code.
+        - DO NOT use Markdown fences (no triple backticks).
+        - DO NOT include a leading language tag such as 'python'.
+        - The very first line MUST be either an import statement or a Python comment starting with '#'.
+        - Do not add any explanations before or after the code.
+
+        example:
         pipeline:
         X_train, X_test, y_train, y_test = train_test_split(df[['latitude', 'longitude']], df[['median_house_value']], test_size=0.33, random_state=0)
         #normalize the training and test data using the preprocessing.normalize() method from sklearn
         X_train_norm = preprocessing.normalize(X_train)
         X_test_norm = preprocessing.normalize(X_test)
-    
+
         kmeans = KMeans(n_clusters = 3, random_state = 0)
         kmeans.fit(X_train_norm)
-                
+
         response:
-         # Split data into training and testing sets
-            X_train, X_test, y_train, y_test = train_test_split(df[['latitude', 'longitude']], df[['median_house_value']], test_size=0.33, random_state=0)
-            tracker.analyze_changes(df)
-        
-            # Normalize the training and test data
-            X_train_norm = preprocessing.normalize(X_train)
-            X_test_norm = preprocessing.normalize(X_test)
-            tracker.analyze_changes(df)
-            
-            # Fit KMeans clustering model to the normalized training data
-            kmeans = KMeans(n_clusters = 3, random_state = 0)
-            kmeans.fit(X_train_norm)
-            tracker.analyze_changes(df)
-            
-            # One-hot encode categorical columns: 'checking', 'credit_history', 'housing', 'job'
-            columns = ['checking', 'credit_history', 'housing', 'job']
-            for i, col in enumerate(columns):
-                dummies = pd.get_dummies(df[col])
-                df_dummies = dummies.add_prefix(col + '_')
-                df = df.join(df_dummies)
-                df = df.drop([col], axis=1)
-            tracker.analyze_changes(df)
+        # Split data into training and testing sets
+        X_train, X_test, y_train, y_test = train_test_split(df[['latitude', 'longitude']], df[['median_house_value']], test_size=0.33, random_state=0)
+        tracker.analyze_changes(df)
+
+        # Normalize the training and test data
+        X_train_norm = preprocessing.normalize(X_train)
+        X_test_norm = preprocessing.normalize(X_test)
+        tracker.analyze_changes(df)
+
+        # Fit KMeans clustering model to the normalized training data
+        kmeans = KMeans(n_clusters = 3, random_state = 0)
+        kmeans.fit(X_train_norm)
+        tracker.analyze_changes(df)
+
+        # One-hot encode categorical columns: 'checking', 'credit_history', 'housing', 'job'
+        columns = ['checking', 'credit_history', 'housing', 'job']
+        for i, col in enumerate(columns):
+            dummies = pd.get_dummies(df[col])
+            df_dummies = dummies.add_prefix(col + '_')
+            df = df.join(df_dummies)
+            df = df.drop([col], axis=1)
+        tracker.analyze_changes(df)
 
         Cleaning Pipeline:{pipeline_content}
 
