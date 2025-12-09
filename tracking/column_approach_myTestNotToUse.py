@@ -23,14 +23,7 @@ def column_vision(changes , current_activities):
         invalidated_columns = []
         if act == 0: 
             continue
-        #MESSO SOLO PER DEBUGGING QUANDO CAPISCO DECOMMENTARE RIGA 33 E CANCELLARE DA RIGA 27 A 32
-        #if 1 <= act <= len(current_activities):
-        #    activity = current_activities[act - 1]
-        #else:
-            # Handle unexpected act values
-        #    print(f"Warning: act={act} is out of range (1-{len(current_activities)})")
-        #    continue
-        activity = current_activities[act-1]#commentare qua per e decommentare sopra se da index out of bound
+        activity = current_activities[act-1]
         df1 = changes[act]['before']
         df2 = changes[act]['after']
         activity['runtime_exceptions'] = "No exceptions occurred"
@@ -56,18 +49,29 @@ def column_vision(changes , current_activities):
             used_columns.append(new_column['id'])
             invalidated_columns.append(new_column['id'])
         # if the column is exclusively in the "after" dataframe
+            # In the unique columns section, after creating unique_df1_col
         for col in unique_col_in_df2:
-            #see if the column already exist or create it
             val_col = str(df2[col].tolist())
             idx_col = str(df2.index.tolist())
             if (val_col, idx_col, col) not in current_columns.keys():
                 new_column = create_column(val_col, idx_col, col)
                 generated_columns.append(new_column['id'])
                 current_columns[(val_col, idx_col, col)] = new_column
+                
+                # Try matching with same index first
+                matched = False
                 for column in unique_df1_col:
                     if new_column['index']==column['index'] and new_column['value']==column['value']:
                         derivations_column.append({'gen': str(new_column['id']), 'used': str(column['id'])})
+                        matched = True
                         break
+                
+                # If no match, try matching by values only (handles index changes)
+                if not matched:
+                    for column in unique_df1_col:
+                        if new_column['value']==column['value']:
+                            derivations_column.append({'gen': str(new_column['id']), 'used': str(column['id'])})
+                            break
         common_col = set(df1.columns).intersection(set(df2.columns))
         for col in common_col:
             new_column = None

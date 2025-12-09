@@ -1,5 +1,6 @@
 from typing import Dict
 import pandas as pd
+from .dataframe_converter import convert_to_dataframe
 
 class ProvenanceTracker:
     def __init__(self, save_on_neo4j=False):

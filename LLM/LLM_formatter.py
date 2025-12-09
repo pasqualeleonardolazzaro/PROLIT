@@ -27,6 +27,13 @@ class LLM_formatter:
         5. Exclusively after the blocks after the subscribe dataframe block for each identified block add at the end, after leaving an empty line a line containing "tracker.analyze_changes(df)"
         6. Do not comment "tracker.analyze_changes(df)" lines
 
+        Output format (strict):
+        - Return ONLY raw Python source code.
+        - DO NOT use Markdown fences (no triple backticks).
+        - DO NOT include a leading language tag such as 'python'.
+        - The very first line MUST be either an import statement or a Python comment starting with '#'.
+        - Do not add any explanations before or after the code.
+
         example: 
         pipeline:
         X_train, X_test, y_train, y_test = train_test_split(df[['latitude', 'longitude']], df[['median_house_value']], test_size=0.33, random_state=0)

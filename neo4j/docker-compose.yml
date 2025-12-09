@@ -12,6 +12,8 @@ services:
       - NEO4JLABS_PLUGINS=["graph-data-science", "apoc"]
       - NEO4J_dbms_directories_import=/
       - NEO4J_dbms_security_allow__csv__import__from__file__urls=true
+      - NEO4J_dbms_security_procedures_unrestricted=gds.*,apoc.*
+      - NEO4J_dbms_security_procedures_allowlist=gds.*,apoc.*
     ports:
       - "7473:7473" # https
       - "7474:7474" # http

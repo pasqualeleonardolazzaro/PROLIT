@@ -1,44 +1,72 @@
 import pandas as pd
-
-def stratified_sample(df, frac):
-    """
-    Perform stratified sampling on a DataFrame.
-    """
-    if frac > 0.0 and frac < 1.0:
-        # Infer categorical columns for stratification
-        stratify_columns = df.select_dtypes(include=['object']).columns.tolist()
-
-        # Check if any class in stratify columns has fewer than 2 members
-        for col in stratify_columns:
-            value_counts = df[col].value_counts()
-            if value_counts.min() >= 2:
-                # Perform stratified sampling for this column
-                stratified_df = df.groupby(col, group_keys=False).apply(lambda x: x.sample(frac=frac))
-                return stratified_df.reset_index(drop=True)
-
-        # If no suitable stratification column is found, fall back to random sampling
-        sampled_df = df.sample(frac=frac).reset_index(drop=True)
-    else:
-        sampled_df = df
-    return sampled_df
+from sklearn.preprocessing import LabelEncoder
+from keras.utils import to_categorical
+from sklearn.model_selection import train_test_split
+import numpy as np
+import tensorflow as tf
 
 
-def run_pipeline(args, tracker) -> None:
+def run_pipeline(args, tracker=None) -> None:
 
+    # Load the dataset from the specified input path
     input_path = args.dataset
 
-    df = pd.read_csv(input_path)
-    
-    # Subscribe dataframe
-    df = tracker.subscribe(df)
+    # Read the CSV file into a pandas DataFrame
+    df = pd.read_csv(input_path, header=0)
+
+    # If a fraction is specified, sample the DataFrame to the specified fraction
+    if hasattr(args, 'frac') and args.frac != 0.0:
+        df = df.sample(frac=args.frac)
+
+    # If a tracker is provided, subscribe the DataFrame to the tracker
+    if(tracker is not None):
+        # Subscribe the DataFrame to the tracker
+        df = tracker.subscribe(df)
     tracker.analyze_changes(df)
 
-    # Separate features and target variable
-    df = df.iloc[:, :-1]
+    # Rename the 'PassengerId' column to 'ID'
+    df.rename(columns={"PassengerId": "ID"}, inplace=True)
+    # Remove the 'Name', 'Ticket', and 'Cabin' columns, which might not be useful
+    df = df.drop(columns=["Name", "Ticket", "Cabin"])
     tracker.analyze_changes(df)
 
-    # Impute missing values in the numerical column
-    df['Age'].fillna(df['Age'].mean(), inplace=True)
+    # Drop rows with missing values in the 'Embarked' column
+    df = df.dropna(subset=["Embarked"])
+    # Create a new column 'MissAge' to indicate whether the 'Age' is missing
+    df['MissAge'] = df['Age'].isna().astype(int)
+    # Fill missing 'Age' values with 0
+    df.fillna({'Age':0}, inplace=True)
     tracker.analyze_changes(df)
 
-    print("Finished")
+    # Create a LabelEncoder to transform categorical variables
+    sex_trans = LabelEncoder()
+    # Transform the 'Sex' column using the LabelEncoder
+    df["Sex"] = sex_trans.fit_transform(df["Sex"])
+    # Transform the 'Embarked' column using the LabelEncoder
+    Emb_trans = LabelEncoder()
+    df["Embarked"] = sex_trans.fit_transform(df["Embarked"])
+    tracker.analyze_changes(df)
+
+    # Split the data into features and target
+    y = df["Survived"]
+    # Drop the 'Survived' column from the features
+    df = df.drop(columns=["Survived"])
+    tracker.analyze_changes(df)
+
+    # Convert the 'ID' column to float32
+    df['ID'] = df['ID'].astype(np.float32)
+    # Divide all values in the 'ID' column by 1e7
+    df['ID'] = df['ID'] / 1e7
+    # Move the 'ID' column to the last position
+    df = df[[col for col in df.columns if col != 'ID'] + ['ID']]
+    tracker.analyze_changes(df)
+
+    # One-hot encode the target variable
+    y = to_categorical(y.values, num_classes=2)
+    tracker.analyze_changes(df)
+
+    # Split the data into training and testing sets
+    X_train, X_test, y_train, y_test = train_test_split(df, y, test_size=0.2, random_state=42)
+    tracker.analyze_changes(df)
+
+    return(X_train, X_test, y_train, y_test)
