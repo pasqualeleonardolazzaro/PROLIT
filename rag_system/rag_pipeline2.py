@@ -32,6 +32,23 @@ class RAGPipeline:
         self.router = QueryRouter(self.generator2.llm)
         
         print("RAG Pipeline ready!")
+
+    # Helper to decide if result is actually useful
+    def _is_meaningful_result(self,result):
+        # If we have nodes not empty it's relevant
+        if result['nodes']:
+            return True
+            
+        # If we have facts, check if they are just "0" or "None"
+        if result['facts']:
+            for fact in result['facts']:
+                val_part = fact.split(":")[-1].strip()
+                
+                # If non-zero values found Return True
+                if val_part not in ["0", "0.0", "None", "[]", "null"]:
+                    return True
+                    
+        return False
         
 
     def query(self, query, session_id="default_session"):
@@ -47,13 +64,12 @@ class RAGPipeline:
         if route == "ANALYTIC":
             # Run strictly Cypher
             result = self.cypher_retriever.retrieve(query)
-            
             # Check if we actually got results
-            if result['facts'] or result['nodes']:
+            if self._is_meaningful_result(result):
                 print("--- Analytic Answer Found ---")
                 context_str = context_formatter.format_analytic_result(result)
             else:
-                print("--- Analytic Path Failed (0 results), falling back to Hybrid ---")
+                print("--- Analytic Path Failed (0 results), falling back to Search ---")
                 route = "SEARCH" # Fallback 
 
 

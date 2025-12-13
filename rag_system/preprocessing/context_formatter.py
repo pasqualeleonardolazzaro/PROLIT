@@ -99,30 +99,32 @@ def format_context(expanded_contexts):
     return "\n\n".join(final_text)
 
 def format_analytic_result(result):
-        """
-        Helper to format a list of results without doing graph expansion.
-        Prevents context explosion by truncating if necessary.
-        """
-        lines = ["!!! DATABASE DIRECT QUERY RESULTS !!!"]
+    """
+    Formats results including the Cypher query for context.
+    """
+    lines = ["!!! DATABASE DIRECT QUERY RESULTS !!!"]
+    
+    # Provide the Query 
+    if 'cypher_query' in result:
+        lines.append(f"Query executed: {result['cypher_query']}")
+
+    # Handle Facts 
+    if result['facts']:
+        lines.append(f"Calculated Values: {', '.join(result['facts'])}")
         
-        #  Handle Facts (Counts, Sums)
-        if result['facts']:
-            lines.append(f"Calculated Values: {', '.join(result['facts'])}")
+    # Handle Nodes
+    nodes = result['nodes']
+    if nodes:
+        lines.append(f"Found {len(nodes)} items matching your query:")
+        
+        #truncates to avoid context explosion
+        limit = 100 
+        for i, n in enumerate(nodes):
+            if i >= limit:
+                lines.append(f"... and {len(nodes) - limit} more items (truncated).")
+                break
+            # Use safe get
+            content_preview = n.get('content', '')[:150].replace("\n", " ") 
+            lines.append(f"- {content_preview}")
             
-        #  Handle List of Nodes 
-        # just list their names/labels.
-        nodes = result['nodes']
-        if nodes:
-            lines.append(f"Found {len(nodes)} items matching your query:")
-            
-            # optional safety limit (to make sure the context doesn't "explode"),remove if need absolute certainity of the answer
-            limit = 100 
-            for i, n in enumerate(nodes):
-                if i >= limit:
-                    lines.append(f"... and {len(nodes) - limit} more items (truncated for brevity).")
-                    break
-                # Use a safe get or clean formatting
-                content_preview = n['content'][:100].replace("\n", " ") 
-                lines.append(f"- {content_preview}")
-                
-        return "\n".join(lines)
+    return "\n".join(lines)

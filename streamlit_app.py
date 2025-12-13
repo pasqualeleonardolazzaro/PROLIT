@@ -14,9 +14,7 @@ import uuid
 import numpy as np
 import pickle
 import tempfile
-from rag_system.rag_pipeline2 import get_pipeline
-from rag_system.llm import generator
-from rag_system.indexing import graph_indexer
+
 
 # ====================== CONFIG BASE ======================
 st.set_page_config(page_title="PROLIT Console", layout="wide")
@@ -186,6 +184,9 @@ def initialize_rag():
     Initialize RAG pipeline once and cache it.
     This runs only once per Streamlit server session.
     """
+    from rag_system.rag_pipeline2 import get_pipeline
+    from rag_system.llm import generator
+    from rag_system.indexing import graph_indexer
     return get_pipeline()
 
 
@@ -852,7 +853,7 @@ if page == "Influence Analysis":
                     else:
                         st.warning("No influential points returned.")
                         
-                    # Raw JSON Viewer (Hidden)
+                    # Raw JSON Viewer (Hidden by default for cleanliness)
                     with st.expander("View Raw JSON Output"):
                         st.json(res)
                 else:

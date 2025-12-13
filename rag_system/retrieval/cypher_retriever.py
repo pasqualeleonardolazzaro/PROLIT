@@ -53,7 +53,7 @@ class CypherRetriever:
             RETURN count(e)
 
             # What are the inputs for the activity 'Analysis_V1'?
-            MATCH (a:Activity {{name: 'Analysis_V1'}})<-[:USED]-(e:Entity)
+            MATCH (a:Activity {{function_name: 'Analysis_V1'}})<-[:USED]-(e:Entity)
             RETURN e.name, e.type
             LIMIT 50
 
@@ -95,20 +95,23 @@ class CypherRetriever:
             with self.driver.session() as session:
                 result = session.run(cypher_query)
                 
-                # Analyze the result structure
+                # Get the keys (column names) and values together
                 for record in result:
+                    keys = record.keys()
                     values = record.values()
-                    for val in values:
-                        # check if it's a Graph Node
+                    
+                    for key, val in zip(keys, values):
+                        # Check if it's a Graph Node
                         if hasattr(val, 'element_id') or hasattr(val, 'id'):
                             node_id = val.element_id if hasattr(val, 'element_id') else val.id
-                            # We treat this as a candidate for expansion
                             nodes.append({
                                 "id": node_id,
-                                "content": str(dict(val.items())) if hasattr(val, 'items') else "Node",
+                                # Add the label to the content for better context
+                                "content": f"{key} ({list(val.labels)[0] if hasattr(val, 'labels') else 'Node'}): {str(dict(val.items()))}",
                                 "source": "cypher_node"
                             })
-                        # check if it's a Path (Unpack nodes from path)
+                        
+                        # Check if it's a Path
                         elif hasattr(val, 'nodes'): 
                             for n in val.nodes:
                                 node_id = n.element_id if hasattr(n, 'element_id') else n.id
@@ -117,13 +120,15 @@ class CypherRetriever:
                                     "content": str(dict(n.items())),
                                     "source": "cypher_path"
                                 })
-                        # check if it's data (Count, Sum, String, List)
+                        
+                        # Check if it's data (Facts)
                         else:
-                            # Convert direct values to a string fact
-                            facts.append(str(val))
+                            facts.append(f"{key}: {val}")
                             
         except Exception as e:
             logger.error(f"Cypher fail: {e}")
-            return {"nodes": [], "facts": []}
+            # Return empty lists but include the query that failed
+            return {"nodes": [], "facts": [], "cypher_query": cypher_query}
             
-        return {"nodes": nodes, "facts": facts}
+        # Return the query so the formatter can use it
+        return {"nodes": nodes, "facts": facts, "cypher_query": cypher_query}
