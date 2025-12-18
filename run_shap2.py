@@ -9,6 +9,7 @@ import shap
 import tensorflow as tf
 import joblib
 import pickle
+import glob
 
 def get_prediction_function(model):
     """
@@ -21,13 +22,54 @@ def get_prediction_function(model):
     else:
         #print("Using 'predict' for model explanation.") #print for debugging
         return model.predict
+    
+def load_tensorflow_model(model_path):
+    """
+    Load Keras/TensorFlow model.
+    
+    If model_path is a file or a standard SavedModel directory, it loads it.
+    If model_path is a directory of checkpoints, it loads the latest one (by modification time).
+    """
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(f"Model not found at {model_path}")
+
+    final_path = model_path
+
+    # Check if the path is a directory
+    if os.path.isdir(model_path):
+        # EDGE CASE: A "SavedModel" is a directory containing 'saved_model.pb'.
+        # If this file exists, we treat the directory as a single model.
+        if "saved_model.pb" not in os.listdir(model_path):
+            
+            # It is a directory of checkpoints. Find the latest file.
+            # Look for common Keras extensions. Add others if you use specific formats.
+            extensions = ['*.h5', '*.keras', '*.hdf5', '*.pb'] 
+            files = []
+            for ext in extensions:
+                files.extend(glob.glob(os.path.join(model_path, ext)))
+
+            if not files:
+                raise FileNotFoundError(f"No valid model files ({extensions}) found in {model_path}")
+
+            # Find the latest file based on modification time
+            latest_model = max(files, key=os.path.getmtime)
+            final_path = latest_model
+
+    # Load the model
+    try:
+        model = tf.keras.models.load_model(final_path)
+        return model
+    except Exception as e:
+        raise RuntimeError(f"Failed to load Keras model from '{final_path}': {e}")
+
 
 def load_model_and_detect_framework(model_path):
     """
     Loads a model from the given path and automatically detects its framework.
     """
     try:
-        model = tf.keras.models.load_model(model_path)
+        #model = tf.keras.models.load_model(model_path)
+        model=load_tensorflow_model(model_path)
         #print("Successfully loaded a TensorFlow model.") #print for debugging
         return model, "tensorflow"
     except Exception:

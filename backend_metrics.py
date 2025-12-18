@@ -7,12 +7,13 @@ import sys
 import os
 import tensorflow as tf
 import keras
-
+import glob
+""""
 def load_model(model_path):
-    """
+
     Load Keras/TensorFlow model.
     Supports .h5, .keras, or SavedModel directories.
-    """
+
     if not os.path.exists(model_path):
         raise FileNotFoundError(f"Model not found at {model_path}")
     
@@ -23,6 +24,50 @@ def load_model(model_path):
         return model
     except Exception as e:
         raise RuntimeError(f"Failed to load Keras model: {e}")
+"""  
+def load_model(model_path):
+    """
+    Load Keras/TensorFlow model.
+    
+    If model_path is a file or a standard SavedModel directory, it loads it.
+    If model_path is a directory of checkpoints, it loads the latest one (by modification time).
+    """
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(f"Model not found at {model_path}")
+
+    final_path = model_path
+
+    # Check if the path is a directory
+    if os.path.isdir(model_path):
+        # EDGE CASE: A "SavedModel" is a directory containing 'saved_model.pb'.
+        # If this file exists, we treat the directory as a single model.
+        if "saved_model.pb" in os.listdir(model_path):
+            print(f"Detected SavedModel directory: {model_path}")
+        else:
+            # It is a directory of checkpoints. Find the latest file.
+            print(f"Detected checkpoint directory: {model_path}")
+            
+            # Look for common Keras extensions. Add others if you use specific formats.
+            extensions = ['*.h5', '*.keras', '*.hdf5', '*.pb'] 
+            files = []
+            for ext in extensions:
+                files.extend(glob.glob(os.path.join(model_path, ext)))
+
+            if not files:
+                raise FileNotFoundError(f"No valid model files ({extensions}) found in {model_path}")
+
+            # Find the latest file based on modification time
+            latest_model = max(files, key=os.path.getmtime)
+            print(f"Loading latest model: {latest_model}")
+            final_path = latest_model
+
+    # Load the model
+    try:
+        model = keras.models.load_model(final_path, compile=False)
+        return model
+    except Exception as e:
+        raise RuntimeError(f"Failed to load Keras model from '{final_path}': {e}")
+    
 def ensure_numpy_1d(y_data):
     """
     Helper to convert One-Hot Encoded or 2D column vectors into 1D arrays.

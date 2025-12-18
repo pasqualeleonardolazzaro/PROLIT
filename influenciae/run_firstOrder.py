@@ -5,6 +5,8 @@ import types
 import pandas as pd
 import numpy as np
 import tensorflow as tf
+import glob
+import os
 from deel.influenciae.common import InfluenceModel
 from deel.influenciae.influence import FirstOrderInfluenceCalculator
 #from deel.influenciae.common import LissaIHVP
@@ -67,6 +69,45 @@ def safe_serialize(obj):
         return obj.item()
     return obj
 
+def load_model(model_path):
+    """
+    Load Keras/TensorFlow model.
+    
+    If model_path is a file or a standard SavedModel directory, it loads it.
+    If model_path is a directory of checkpoints, it loads the latest one (by modification time).
+    """
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(f"Model not found at {model_path}")
+
+    final_path = model_path
+
+    # Check if the path is a directory
+    if os.path.isdir(model_path):
+        # EDGE CASE: A "SavedModel" is a directory containing 'saved_model.pb'.
+        # If this file exists, we treat the directory as a single model.
+        if "saved_model.pb" not in os.listdir(model_path):
+            
+            # It is a directory of checkpoints. Find the latest file.
+            # Look for common Keras extensions. Add others if you use specific formats.
+            extensions = ['*.h5', '*.keras', '*.hdf5', '*.pb'] 
+            files = []
+            for ext in extensions:
+                files.extend(glob.glob(os.path.join(model_path, ext)))
+
+            if not files:
+                raise FileNotFoundError(f"No valid model files ({extensions}) found in {model_path}")
+
+            # Find the latest file based on modification time
+            latest_model = max(files, key=os.path.getmtime)
+            final_path = latest_model
+
+    # Load the model
+    try:
+        model = tf.keras.models.load_model(final_path)
+        return model
+    except Exception as e:
+        raise RuntimeError(f"Failed to load Keras model from '{final_path}': {e}")
+
 def main():
 
     #  READ INPUT
@@ -124,7 +165,8 @@ def main():
 
     # LOAD MODEL
 
-    model = tf.keras.models.load_model(model_path)
+    #model = tf.keras.models.load_model(model_path)
+    model=load_model(model_path)
     if not model.loss:
         raise ValueError("Model has no compiled loss function.")
 

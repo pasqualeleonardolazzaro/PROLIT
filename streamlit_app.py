@@ -37,7 +37,7 @@ ss.setdefault("reload_nonce", 0)      # cambia per forzare reload editor
 
 # ====================== NAVIGAZIONE ======================
 st.sidebar.title("PROLIT")
-page = st.sidebar.radio("Navigazione", ["Run PROLIT", "Graph Chat", "Provenance Explorer","SHAP Analisys","Influence Analysis"], index=0)
+page = st.sidebar.radio("Navigazione", ["Run PROLIT", "Graph Chat", "Provenance Explorer","Global Analisys","Local Analysis"], index=0)
 st.sidebar.caption(f"Working dir: {BASE_DIR}")
 
 # ====================== HELPERS COMUNI ======================
@@ -176,6 +176,207 @@ def run_FirstOrder(model_path, dataset_path, pipeline_path, sample_to_predict):
         )
 
     return json.loads(result.stdout)
+
+def run_FirstOrder_global(model_path, dataset_path, pipeline_path):
+    """
+    Calls the FirstOrder script inside the influenciae env.
+    sample_to_predict can be a Pandas row (Series) or dict-like.
+    """
+    ensure_influenciae_env()
+
+    python_path = get_influenciae_python()
+
+    script_path = BASE_DIR / "influenciae" / "run_firstOrderGlobal.py"
+
+    if not script_path.exists():
+        raise FileNotFoundError(f"Influence script not found at {script_path}")
+
+
+    # Create payload
+    data = {
+        "model_path": str(model_path),
+        "dataset": str(dataset_path),
+        "pipeline_path": str(pipeline_path),
+    }
+
+    # Call subprocess
+    result = subprocess.run(
+        [str(python_path), str(script_path)],
+        input=json.dumps(data),
+        text=True,
+        capture_output=True
+    )
+
+    # Error handling 
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"Error running influenciae script:\n"
+            f"STDOUT: {result.stdout}\n\n"
+            f"STDERR: {result.stderr}"
+        )
+
+    return json.loads(result.stdout)
+
+def run_TracIn(model_path, dataset_path, pipeline_path, sample_to_predict):
+    """
+    Calls the FirstOrder script inside the influenciae env.
+    sample_to_predict can be a Pandas row (Series) or dict-like.
+    """
+    ensure_influenciae_env()
+
+    python_path = get_influenciae_python()
+
+    script_path = BASE_DIR / "influenciae" / "run_TracIn.py"
+
+    if not script_path.exists():
+        raise FileNotFoundError(f"Influence script not found at {script_path}")
+
+    # Convert sample row to JSON-friendly dict
+    if hasattr(sample_to_predict, "to_dict"):
+        sample_dict = sample_to_predict.to_dict()
+    else:
+        sample_dict = sample_to_predict
+
+    # Create payload
+    data = {
+        "model_path": str(model_path),
+        "dataset": str(dataset_path),
+        "pipeline_path": str(pipeline_path),
+        "sample_to_predict": sample_dict,
+    }
+
+    # Call subprocess
+    result = subprocess.run(
+        [str(python_path), str(script_path)],
+        input=json.dumps(data),
+        text=True,
+        capture_output=True
+    )
+
+    # Error handling 
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"Error running influenciae script:\n"
+            f"STDOUT: {result.stdout}\n\n"
+            f"STDERR: {result.stderr}"
+        )
+
+    return json.loads(result.stdout)
+
+def run_TracIn_global(model_path, dataset_path, pipeline_path):
+    """
+    Calls the FirstOrder script inside the influenciae env.
+    sample_to_predict can be a Pandas row (Series) or dict-like.
+    """
+    ensure_influenciae_env()
+
+    python_path = get_influenciae_python()
+
+    script_path = BASE_DIR / "influenciae" / "run_TracInGlobal.py"
+
+    if not script_path.exists():
+        raise FileNotFoundError(f"Influence script not found at {script_path}")
+
+
+    # Create payload
+    data = {
+        "model_path": str(model_path),
+        "dataset": str(dataset_path),
+        "pipeline_path": str(pipeline_path),
+    }
+
+    # Call subprocess
+    result = subprocess.run(
+        [str(python_path), str(script_path)],
+        input=json.dumps(data),
+        text=True,
+        capture_output=True
+    )
+
+    # Error handling 
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"Error running influenciae script:\n"
+            f"STDOUT: {result.stdout}\n\n"
+            f"STDERR: {result.stderr}"
+        )
+
+    return json.loads(result.stdout)
+    
+# Helper to format the raw JSON list into a clean DataFrame
+def format_influence_df(data_list):
+    """
+    Generates links based on features, flattens the JSON, and formats the table.
+    """
+    if not data_list:
+        return pd.DataFrame()
+    
+    # generate the Link for each item before flattening
+    processed_list = []
+    for item in data_list:
+        new_item = item.copy()
+        
+        # Generate URL
+        features = item.get('features', {})
+        new_item['Graph Link'] = create_fingerprint_url(features)
+        
+        processed_list.append(new_item)
+    
+    # Flatten nested dictionaries
+    df = pd.json_normalize(processed_list)
+    
+    # Clean column names
+    df.columns = [col.replace("features.", "") for col in df.columns]
+    
+    # Reorder Columns 
+    priority_cols = ['training_index', 'Graph Link', 'mean_influence_score', 'label']
+    
+   
+    final_cols = [c for c in priority_cols if c in df.columns] + \
+                 [c for c in df.columns if c not in priority_cols]
+    
+    return df[final_cols]
+
+#query for neo4j most influent point retrival
+def create_fingerprint_url(row_features):
+    """
+    Creates a URL that finds a specific row in Neo4j based on the
+    intersection of all its feature names and values.
+    """
+    base_url = "http://localhost:7474/browser/"
+    
+    # Create a list of conditions for the WHERE clause
+    conditions = []
+    
+    for feature, value in row_features.items():
+        # json.dumps ensures strings have quotes ("val") and numbers don't (10)
+        val_str = json.dumps(value) 
+        conditions.append(f"(n.feature_name = '{feature}' AND n.value = {val_str})")
+    
+    if not conditions:
+        return base_url # Return empty if row has no features
+
+    where_clause = " OR ".join(conditions)
+
+    # Construct the Cypher query
+    # Logic: 
+    #   - Find ALL nodes that match ANY feature-value pair.
+    #   - Group them by their 'index' (n.index).
+    #   - Count how many matches exist for that index (match_count).
+    #   - Order by the count descending (biggest match first).
+    #   - Take the top 1 result.
+    query = (
+        f"MATCH (n:Entity) "
+        f"WHERE {where_clause} "
+        f"WITH n.index as idx, collect(n) as row_nodes, count(n) as match_count "
+        f"ORDER BY match_count DESC "
+        f"LIMIT 1 "
+        f"RETURN row_nodes"
+    )
+    
+    # URL Encode
+    encoded_query = urllib.parse.quote(query)
+    return f"{base_url}?cmd=edit&arg={encoded_query}"
     
 # Initialize the pipeline once using Streamlit's caching
 @st.cache_resource
@@ -422,8 +623,8 @@ elif page == "Provenance Explorer":
 
 # ====================== PAGINA: SHAP ANALYSIS ======================
 
-if page == "SHAP Analisys":
-    st.title("SHAP analisys")
+if page == "Global Analisys":
+    st.title("Global analisys")
 
     # ---- Scansione cartelle per menu a tendina ----
     datasets_dir = BASE_DIR / "datasets"
@@ -471,35 +672,35 @@ if page == "SHAP Analisys":
         return f"{base_url}?cmd=edit&arg={encoded_query}"
     # --- Interfaccia Utente ---
 
-    st.header("1. Seleziona i componenti per l'analisi")
+    st.header("1. Configuration")
 
     selected_dataset = st.selectbox(
-        "Scegli un dataset:",
+        "Select dataset:",
         dataset_options
     )
 
     selected_pipeline = st.selectbox(
-        "Scegli una pipeline:",
+        "Select pipeline:",
         pipeline_options
     )
 
     selected_model = st.selectbox(
-        "Scegli un modello:",
+        "Select model:",
         models_options
     )
 
-    st.header("2. Esegui l'analisi")
+    st.header("2. Chose Explaination Method")
 
-    if st.button("Avvia analisi SHAP"):
+    if st.button("feature analysis with SHAP"):
         if selected_dataset and selected_pipeline and selected_model:
-            with st.spinner("Esecuzione dell'analisi SHAP in corso..."):
+            with st.spinner("Calculating global feature SHAPLY values (this may take a while)..."):
                 cmd, returncode = run_shap(selected_model, selected_pipeline, selected_dataset)
 
                 if returncode == 0:
-                    st.success("Analisi SHAP completata con successo!")
+                    st.success("success!")
 
                     # --- Mostra i risultati ---
-                    st.header("3. Risultati dell'analisi")
+                    st.header("3. Risultats")
 
                     
                     try:
@@ -508,7 +709,7 @@ if page == "SHAP Analisys":
 
                         # Check if there is any output
                         if not output_json:
-                            st.warning("Lo script non ha prodotto nessun output.")
+                            st.warning("No output returned.")
                         else:
                             # Parse the JSON string into a Python dictionary
                             results = json.loads(output_json)
@@ -516,7 +717,7 @@ if page == "SHAP Analisys":
                             # --- Display the table from 'top_features' ---
                             top_features_data = results.get("top_features")
                             if top_features_data:
-                                st.subheader("Tabella delle feature più importanti")
+                                st.subheader("Most influential Features")
                                 # Convert the list of dictionaries directly into a Pandas DataFrame
                                 df = pd.DataFrame(top_features_data)
 
@@ -537,7 +738,7 @@ if page == "SHAP Analisys":
                                         column_config={
                                             "Open in Neo4j Browser": st.column_config.LinkColumn(
                                                 "Neo4j Query",
-                                                display_text="Run Query in Browser",
+                                                display_text="Find in graph",
                                                 help="Click to open the query in the Neo4j Browser"
                                             )
                                         },
@@ -553,25 +754,124 @@ if page == "SHAP Analisys":
                             if image_path_str:
                                 image_path = Path(image_path_str)
                                 if image_path.exists():
-                                    st.subheader("Grafico SHAP")
+                                    st.subheader("SHAP graph")
                                     st.image(str(image_path), caption="Grafico di riepilogo SHAP")
                                 else:
-                                    st.warning(f"Il file dell'immagine non è stato trovato al percorso: {image_path_str}")
+                                    st.warning(f"file not found at path: {image_path_str}")
                             else:
-                                st.warning("Il percorso del grafico ('plot_path') non è stato trovato nell'output.")
+                                st.warning("'plot_path' not found")
 
                     except json.JSONDecodeError:
-                        st.error("Errore: Impossibile decodificare l'output dello script. Non è un JSON valido.")
-                        st.text_area("Output ricevuto (stdout)", st.session_state.get('stdout', ''), height=150)
+                        st.error("Error: JSON not valid.")
+                        st.text_area("Output  (stdout)", st.session_state.get('stdout', ''), height=150)
                     except Exception as e:
-                        st.error(f"Errore durante la visualizzazione dei risultati: {e}")
+                        st.error(f"Error visualizing the results: {e}")
                         st.text_area("Output (stdout)", st.session_state.get('stdout', ''), height=150)
         else:
-            st.warning("Per favore, seleziona un dataset, una pipeline e un modello.")
+            st.warning("Select  dataset,  pipeline and modello.")
+
+   # 1. Create columns to place buttons side-by-side
+    c_btn1, c_btn2 = st.columns(2)
+
+    with c_btn1:
+        run_fo_global = st.button("Influence score with FirstOrder")
+
+    with c_btn2:
+        run_tracin_global = st.button("Influence score with TracIn")
+
+    # 2. Check if EITHER button was clicked
+    if run_fo_global or run_tracin_global:
+        if selected_dataset and selected_pipeline and selected_model:
+            
+            # Determine the method name for the spinner text
+            method_name = "FirstOrder" if run_fo_global else "TracIn"
+            
+            with st.spinner(f"Calculating global {method_name} influence (this may take a while)..."):
+                try:
+                    # --- LOGIC BRANCHING HERE ---
+                    if run_fo_global:
+                        globalInfluenceResults = run_FirstOrder_global(
+                            selected_model, 
+                            selected_dataset, 
+                            selected_pipeline
+                        )
+                    else: # run_tracin_global
+                        globalInfluenceResults = run_TracIn_global(
+                            selected_model, 
+                            selected_dataset, 
+                            selected_pipeline
+                        )
+                   
+                    
+                    # check status
+                    if globalInfluenceResults.get("status") == "success":
+                        
+                        # Extract Data
+                        stats = globalInfluenceResults["global_statistics"]
+                        top_influential = globalInfluenceResults["most_influential_samples"]
+                        potential_poison = globalInfluenceResults["potential_mislabeled_samples"]
+                        debug_info = globalInfluenceResults.get("debug_info", {})
+
+                        # stats
+                        st.success(f"{method_name} Analysis Complete")
+                        c1, c2, c3, c4 = st.columns(4)
+                        c1.metric("Test Set Size", stats.get('n_test_samples_analyzed', 'N/A'))
+                        c2.metric("Train Set Size", debug_info.get('X_train', 'N/A'))
+                        c3.metric("Mean Influence", f"{stats['mean_influence']:.5f}")
+                        c4.metric("Max Influence", f"{stats['max_influence']:.5f}")
+                        
+                        st.markdown("---")
+
+                        # Graph Link
+                        table_config = {
+                            "Graph Link": st.column_config.LinkColumn(
+                                "Graph Context",
+                                display_text="Find in Graph", 
+                                help="Click to open this data point in Neo4j Browser"
+                            ),
+                            "mean_influence_score": st.column_config.NumberColumn(
+                                "Influence Score",
+                                format="%.5f"
+                            )
+                        }
+
+                        #  TOP INFLUENTIAL 
+                        st.subheader("Top Influential Training Points")
+                        st.caption("Training examples that contributed most positively.")
+                        
+                        df_top = format_influence_df(top_influential)
+                        st.dataframe(
+                            df_top,
+                            use_container_width=True,
+                            column_config=table_config,
+                            hide_index=True
+                        )
+
+                        # POTENTIAL POISONING 
+                        st.subheader("Potential Mislabeled / Poisoning")
+                        st.caption("Training examples with strong negative influence.")
+                        
+                        df_poison = format_influence_df(potential_poison)
+                        
+                        st.dataframe(
+                            df_poison.style.background_gradient(cmap="Reds_r", subset=["mean_influence_score"]),
+                            use_container_width=True,
+                            column_config=table_config,
+                            hide_index=True
+                        )
+
+                    else:
+                        st.error(f"Analysis failed: {globalInfluenceResults.get('error')}")
+
+                except RuntimeError as e:
+                    st.error("Execution Error")
+                    st.code(str(e))
+                except Exception as e:
+                    st.error(f"Unexpected Error: {e}")
 
 # ====================== PAGINA: Influence ANALYSIS ======================
-if page == "Influence Analysis":
-    st.title("Influence Analysis")
+if page == "Local Analysis":
+    st.title("Local Analysis")
 
     # ---- SIDEBAR / SETUP ----
     st.sidebar.header("Configuration")
@@ -602,46 +902,7 @@ if page == "Influence Analysis":
     selected_pipeline = st.sidebar.selectbox("Pipeline", pipeline_options)
     selected_model = st.sidebar.selectbox("Model", models_options)
 
-    #query for neo4j most influent point retrival
-    def create_fingerprint_url(row_features):
-        """
-        Creates a URL that finds a specific row in Neo4j based on the
-        intersection of all its feature names and values.
-        """
-        base_url = "http://localhost:7474/browser/"
-        
-        # Create a list of conditions for the WHERE clause
-        conditions = []
-        
-        for feature, value in row_features.items():
-            # json.dumps ensures strings have quotes ("val") and numbers don't (10)
-            val_str = json.dumps(value) 
-            conditions.append(f"(n.feature_name = '{feature}' AND n.value = {val_str})")
-        
-        if not conditions:
-            return base_url # Return empty if row has no features
 
-        where_clause = " OR ".join(conditions)
-
-        # 2. Construct the Cypher query
-        # Logic: 
-        #   - Find ALL nodes that match ANY feature-value pair.
-        #   - Group them by their 'index' (n.index).
-        #   - Count how many matches exist for that index (match_count).
-        #   - Order by the count descending (biggest match first).
-        #   - Take the top 1 result.
-        query = (
-            f"MATCH (n:Entity) "
-            f"WHERE {where_clause} "
-            f"WITH n.index as idx, collect(n) as row_nodes, count(n) as match_count "
-            f"ORDER BY match_count DESC "
-            f"LIMIT 1 "
-            f"RETURN row_nodes"
-        )
-        
-        # 3. URL Encode
-        encoded_query = urllib.parse.quote(query)
-        return f"{base_url}?cmd=edit&arg={encoded_query}"
 
     # Initialize Session State
     if "analysis_results" not in st.session_state:
@@ -761,18 +1022,32 @@ if page == "Influence Analysis":
             col_btn, col_info = st.columns([1, 4])
             
             with col_btn:
-                run_clicked = st.button("Run FirstOrder on Selection")
-                
-            #Persistence is not really necessary
-            if run_clicked:
-                with st.spinner("Calculating Influence..."):
+                # Renamed variable for clarity
+                run_fo_clicked = st.button("Run FirstOrder on Selection") 
+                # New button
+                run_tracin_clicked = st.button("Run TracIn on Selection") 
+
+            # Logic for FirstOrder
+            if run_fo_clicked:
+                with st.spinner("Calculating FirstOrder Influence..."):
                     st.session_state.influence_result = run_FirstOrder(
                         BASE_DIR / selected_model,
                         BASE_DIR / selected_dataset,
                         BASE_DIR / selected_pipeline,
                         selected_row_data
                     )
-                    st.toast("Calculated Influence Functions!", icon="🚀")
+                    st.toast("Calculated FirstOrder Influence!", icon="🚀")
+
+            # Logic for TracIn (The new functionality)
+            if run_tracin_clicked:
+                with st.spinner("Calculating TracIn Influence..."):
+                    st.session_state.influence_result = run_TracIn(
+                        BASE_DIR / selected_model,
+                        BASE_DIR / selected_dataset,
+                        BASE_DIR / selected_pipeline,
+                        selected_row_data
+                    )
+                    st.toast("Calculated TracIn Influence!", icon="🚀")
 
             with col_info:
                 with st.expander("View Selected Row Details"):
