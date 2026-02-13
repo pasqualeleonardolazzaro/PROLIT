@@ -240,11 +240,13 @@ def main():
         "n_test_samples_analyzed": int(test_samples_count)
     }
 
-    K_display = 10
+    K_display = 10 #modifica qui per le prove 10,50,100
     sorted_indices = np.argsort(global_influence_scores)
     
     top_indices = sorted_indices[-K_display:][::-1]
     bottom_indices = sorted_indices[:K_display]
+    #bottom_indices = sorted_indices[-K_display:][::-1]
+    #top_indices = sorted_indices[:K_display]
 
     train_columns = X_train.columns if hasattr(X_train, "columns") else None
 

@@ -7,6 +7,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import shap
 import tensorflow as tf
+import keras
 import joblib
 import pickle
 import glob
@@ -39,9 +40,13 @@ def load_tensorflow_model(model_path):
     if os.path.isdir(model_path):
         # EDGE CASE: A "SavedModel" is a directory containing 'saved_model.pb'.
         # If this file exists, we treat the directory as a single model.
-        if "saved_model.pb" not in os.listdir(model_path):
-            
+        if "saved_model.pb" in os.listdir(model_path):
+            #print(f"Detected SavedModel directory: {model_path}")
+            next
+        else:
             # It is a directory of checkpoints. Find the latest file.
+            #print(f"Detected checkpoint directory: {model_path}")
+            
             # Look for common Keras extensions. Add others if you use specific formats.
             extensions = ['*.h5', '*.keras', '*.hdf5', '*.pb'] 
             files = []
@@ -53,11 +58,12 @@ def load_tensorflow_model(model_path):
 
             # Find the latest file based on modification time
             latest_model = max(files, key=os.path.getmtime)
+            #print(f"Loading latest model: {latest_model}")
             final_path = latest_model
 
     # Load the model
     try:
-        model = tf.keras.models.load_model(final_path)
+        model = keras.models.load_model(final_path, compile=False)
         return model
     except Exception as e:
         raise RuntimeError(f"Failed to load Keras model from '{final_path}': {e}")

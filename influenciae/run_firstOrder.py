@@ -196,18 +196,19 @@ def main():
         loss_function=unreduced_loss_fn 
     )
 
-    # This is better for larger models but doesn't work for small ones
-   # ihvp_calculator = LissaIHVP(
-   #     influence_model,
-   #     extractor_layer=-1,       
-   #     train_dataset=train_dataset,
-   #     n_opt_iters=10            
-   # )
+    
+  # Calculator Choice
+    n_params = np.sum([np.prod(v.shape) for v in model.trainable_variables])
+    if n_params > 10000:
+        from deel.influenciae.common import LissaIHVP
+        ihvp_calculator = LissaIHVP(influence_model, train_dataset, n_opt_iters=10)
+    else:
+        ihvp_calculator = ExactIHVP(influence_model, train_dataset)
 
-    # Using ExactIHVP for small models/layers
-    ihvp_calculator = ExactIHVP(
+    calculator = FirstOrderInfluenceCalculator(
         influence_model,
         train_dataset,
+        ihvp_calculator=ihvp_calculator
     )
 
     calculator = FirstOrderInfluenceCalculator(

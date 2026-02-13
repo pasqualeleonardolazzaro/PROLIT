@@ -19,25 +19,44 @@ def _get_display_name(props):
             
     return "Unnamed Entity"
 
+
 def _clean_props(props, is_central=False):
     """
-    Removes heavy fields like vectors or long descriptions.
-    If it's the central node, we allow more detail.
-    If it's a neighbor, we keep it very brief.
+    Removes heavy fields.
+    - Neighbors: Skip long strings entirely to save space.
+    - Central Node: TRUNCATE long strings so we get context but not overflow.
     """
-    # List of keys to ALWAYS exclude
+    # Keys to ALWAYS exclude
     blacklist = {'embedding', 'vector', 'embedding_node2vec', 'full_text_embedding'}
+    
+    # 1. SET LIMITS
+    # 600 chars is roughly 150-200 tokens. 
+    # If a node has 10 properties, that's max 2000 tokens.
+    MAX_CENTRAL_LEN = 600 
+    MAX_NEIGHBOR_LEN = 100
     
     cleaned = {}
     for k, v in props.items():
         if k.lower() in blacklist:
             continue
         
-        # For neighbors, skip long text fields to save tokens
-        if not is_central and isinstance(v, str) and len(v) > 100:
-            continue
+        # Check Value Type
+        if isinstance(v, str):
+            if is_central:
+                # SAFEGUARD: If central node text is huge, truncate it.
+                if len(v) > MAX_CENTRAL_LEN:
+                    cleaned[k] = v[:MAX_CENTRAL_LEN] + "... [truncated]"
+                else:
+                    cleaned[k] = v
+            else:
+                # Neighbor logic: Skip entirely if too long (keep graph concise)
+                if len(v) > MAX_NEIGHBOR_LEN:
+                    continue
+                cleaned[k] = v
+        else:
+            # Keep numbers/booleans as they are usually token-cheap
+            cleaned[k] = v
             
-        cleaned[k] = v
     return cleaned
 
 def format_context(expanded_contexts):

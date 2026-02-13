@@ -7,3 +7,4 @@ NaturalLanguageGraphExploitation/API_KEY.ipynb
 .influenciae_env/
 rag_system/faiss_indexes/*.pkl
 rag_system/faiss_indexes/*.idx
+venv/

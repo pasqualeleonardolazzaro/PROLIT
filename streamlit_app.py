@@ -17,7 +17,7 @@ import tempfile
 
 
 # ====================== CONFIG BASE ======================
-st.set_page_config(page_title="PROLIT Console", layout="wide")
+st.set_page_config(page_title="PROXAI Console", layout="wide")
 
 BASE_DIR = Path(__file__).parent.resolve()
 os.chdir(BASE_DIR)
@@ -36,7 +36,7 @@ ss.setdefault("use_manual", True)     # di default usa il codice manuale se pres
 ss.setdefault("reload_nonce", 0)      # cambia per forzare reload editor
 
 # ====================== NAVIGAZIONE ======================
-st.sidebar.title("PROLIT")
+st.sidebar.title("PROXAI")
 page = st.sidebar.radio("Navigazione", ["Run PROLIT", "Graph Chat", "Provenance Explorer","Global Analisys","Local Analysis"], index=0)
 st.sidebar.caption(f"Working dir: {BASE_DIR}")
 
@@ -405,6 +405,7 @@ def build_rag_index():
     Rebuild the FAISS indexes from the graph.
     This is called from the UI when needed.
     """
+    from rag_system.indexing import graph_indexer
     graph_indexer.build_indexes()
     # Clear the cached pipeline so it reloads with new indexes
     st.cache_resource.clear()
@@ -621,10 +622,10 @@ elif page == "Provenance Explorer":
             width=0,
         )
 
-# ====================== PAGINA: SHAP ANALYSIS ======================
+# ====================== PAGINA: GLOBAL ANALYSIS ======================
 
 if page == "Global Analisys":
-    st.title("Global analisys")
+    st.title("Global analysis")
 
     # ---- Scansione cartelle per menu a tendina ----
     datasets_dir = BASE_DIR / "datasets"
@@ -700,7 +701,7 @@ if page == "Global Analisys":
                     st.success("success!")
 
                     # --- Mostra i risultati ---
-                    st.header("3. Risultats")
+                    st.header("3. Risults")
 
                     
                     try:
@@ -860,6 +861,9 @@ if page == "Global Analisys":
                             hide_index=True
                         )
 
+                        with st.expander("View Raw JSON Output"):
+                            st.json(potential_poison)
+
                     else:
                         st.error(f"Analysis failed: {globalInfluenceResults.get('error')}")
 
@@ -869,7 +873,7 @@ if page == "Global Analisys":
                 except Exception as e:
                     st.error(f"Unexpected Error: {e}")
 
-# ====================== PAGINA: Influence ANALYSIS ======================
+# ====================== PAGINA: Local ANALYSIS ======================
 if page == "Local Analysis":
     st.title("Local Analysis")
 

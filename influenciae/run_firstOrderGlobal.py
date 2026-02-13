@@ -245,7 +245,7 @@ def main():
         "n_test_samples_analyzed": int(test_samples_count)
     }
 
-    K_display = 10
+    K_display = 10 #cambiare qui per le prove 10,50,100
     sorted_indices = np.argsort(global_influence_scores)
     
     top_indices = sorted_indices[-K_display:][::-1]

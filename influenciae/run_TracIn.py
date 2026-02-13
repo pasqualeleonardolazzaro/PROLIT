@@ -8,6 +8,7 @@ import tensorflow as tf
 import os
 from deel.influenciae.common import InfluenceModel
 from deel.influenciae.trac_in import TracIn
+from deel.influenciae.utils import ORDER
 
 
 def get_unreduced_loss(original_loss):
