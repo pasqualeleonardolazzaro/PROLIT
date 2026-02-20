@@ -37,7 +37,7 @@ ss.setdefault("reload_nonce", 0)      # cambia per forzare reload editor
 
 # ====================== NAVIGAZIONE ======================
 st.sidebar.title("PROXAI")
-page = st.sidebar.radio("Navigazione", ["Run PROLIT", "Graph Chat", "Provenance Explorer","Global Analisys","Local Analysis"], index=0)
+page = st.sidebar.radio("Navigazione", ["Provenance Analysis", "Graph Chat", "Provenance Explorer","Global Analysis","Local Analysis"], index=0)
 st.sidebar.caption(f"Working dir: {BASE_DIR}")
 
 # ====================== HELPERS COMUNI ======================
@@ -411,8 +411,8 @@ def build_rag_index():
     st.cache_resource.clear()
 
 # ====================== PAGINA: RUN PROLIT ======================
-if page == "Run PROLIT":
-    st.title("Run PROLIT")
+if page == "Provenance Analysis":
+    st.title("Provenance Analysis")
 
     # ---- Scansione cartelle per menu a tendina ----
     datasets_dir = BASE_DIR / "datasets"
@@ -464,21 +464,21 @@ if page == "Run PROLIT":
     left, right = st.columns([2, 1])
     with left:
         st.checkbox(
-            "Usa codice manuale (extracted_code.py)",
+            "Use manual code  (extracted_code.py)",
             value=ss.use_manual,
             key="use_manual",
             help="Se attivo, passa --use_manual_code a prolit_run.py (gestito da get_args()).",
         )
     with right:
         if EXTRACTED_BAK.exists():
-            if st.button("Ripristina codice LLM"):
+            if st.button("Restore LLM code "):
                 shutil.copy2(EXTRACTED_BAK, EXTRACTED)
-                st.success("Ripristinato extracted_code.py dal backup LLM.")
+                st.success("Restored extracted_code.py from backup LLM.")
                 ss.reload_nonce += 1
                 st.rerun()
 
     # ---- Editor nascosto finché non lo espandi ----
-    with st.expander("Editor avanzato: `extracted_code.py` (clicca per espandere)", expanded=False):
+    with st.expander("advanced editor: `extracted_code.py` (click to expand)", expanded=False):
         # ricarica SEMPRE il contenuto da file a ogni rerun
         if EXTRACTED.exists():
             try:
@@ -505,18 +505,18 @@ if page == "Run PROLIT":
         ecol1, ecol2, ecol3 = st.columns([1,1,2])
         if ecol1.button("💾 Salva"):
             save_user_code(edited)
-            st.success("Salvato `extracted_code.py`.")
+            st.success("Saved `extracted_code.py`.")
             ss.reload_nonce += 1
             st.rerun()
 
-        if ecol2.button("↻ Ricarica da file"):
+        if ecol2.button("↻ Reload from file"):
             ss.reload_nonce += 1
             st.rerun()
 
         ecol3.caption(f"Ultima modifica: {mtime_ns}")
 
     # ---- Esecuzione ----
-    run_clicked = st.button("▶️ Run PROLIT", type="primary")
+    run_clicked = st.button("▶️ Run Provenance Analysis", type="primary")
 
     if run_clicked:
         # forza anche il reload editor al prossimo rerun
@@ -526,7 +526,7 @@ if page == "Run PROLIT":
         # qui non possiamo leggere il valore del text_area senza chiave fissa;
         # quindi confidiamo che l'utente abbia premuto "Salva".
         # (scelta intenzionale: vogliamo reload da file a ogni run)
-        with st.status("Esecuzione in corso…", expanded=True) as status:
+        with st.status("Running analysis…", expanded=True) as status:
             cmd, rc = run_prolit(dataset, pipeline, frac, granularity, ss.use_manual)
             st.code(" ".join(cmd), language="bash")
 
@@ -558,7 +558,7 @@ if page == "Run PROLIT":
                 status.update(label="✅ Execution succeeded", state="complete")
             else:
                 status.update(label=f"❌ Exit code {ss.last_rc}", state="error")
-                st.error("Se necessario, espandi l'editor, salva le modifiche al file e rilancia.")
+                st.error("If necessary, expand the editor, save changes to file and rerun")
 
 
 # ====================== PAGINA: GRAPH CHAT ======================
@@ -574,12 +574,12 @@ elif page == "Graph Chat":
         st.session_state.messages = []
 
     # --- Build Index Button ---
-    with st.expander("⚙️ Gestione Grafo", expanded=False):
-        st.write("Se è il primo utilizzo o i dati sono cambiati, costruisci l'indice.")
-        if st.button("Carica grafo se è il primo utilizzo"):
-            with st.spinner("Costruzione indice in corso... (potrebbe richiedere tempo)"):
+    with st.expander("⚙️ Graph loader", expanded=False):
+        st.write("Build index for the first use")
+        if st.button("Load graph if it's the first use"):
+            with st.spinner("Building index... (might take a while)"):
                 build_rag_index()
-                st.success("Indice costruito con successo!")
+                st.success("success!")
 
     # --- Display Chat History ---
     # Iterate through the history and display messages
@@ -588,7 +588,7 @@ elif page == "Graph Chat":
             st.markdown(message["content"])
 
     # --- Chat Input ---
-    if prompt := st.chat_input("Fai una domanda al RAG..."):
+    if prompt := st.chat_input("Ask RAG..."):
         
         # Add User message to history and display it
         st.session_state.messages.append({"role": "user", "content": prompt})
@@ -597,7 +597,7 @@ elif page == "Graph Chat":
 
         #  Generate Response
         with st.chat_message("assistant"):
-            with st.spinner("Sto analizzando il grafo..."):
+            with st.spinner("analyzing the graph..."):
                 # Call the subprocess function
                 response_text = ask_rag(prompt, st.session_state.session_id)
                 
@@ -610,12 +610,12 @@ elif page == "Graph Chat":
 elif page == "Provenance Explorer":
     st.title("Provenance Explorer")
 
-    st.write("Apri il Neo4j Browser per esplorare il grafo di provenance:")
+    st.write("Open Neo4j Browser:")
     # link cliccabile
-    st.markdown("[🌐 Apri Neo4j Browser](http://localhost:7474/browser/)")
+    st.markdown("[🌐 Neo4j Browser](http://localhost:7474/browser/)")
 
     # pulsante che apre in nuova scheda
-    if st.button("Apri Neo4j Browser"):
+    if st.button("Open Neo4j Browser"):
         st.components.v1.html(
             "<script>window.open('http://localhost:7474/browser/', '_blank');</script>",
             height=0,
@@ -624,7 +624,7 @@ elif page == "Provenance Explorer":
 
 # ====================== PAGINA: GLOBAL ANALYSIS ======================
 
-if page == "Global Analisys":
+if page == "Global Analysis":
     st.title("Global analysis")
 
     # ---- Scansione cartelle per menu a tendina ----
@@ -837,7 +837,7 @@ if page == "Global Analisys":
                         }
 
                         #  TOP INFLUENTIAL 
-                        st.subheader("Top Influential Training Points")
+                        st.subheader("Proponents")
                         st.caption("Training examples that contributed most positively.")
                         
                         df_top = format_influence_df(top_influential)
@@ -849,7 +849,7 @@ if page == "Global Analisys":
                         )
 
                         # POTENTIAL POISONING 
-                        st.subheader("Potential Mislabeled / Poisoning")
+                        st.subheader("Opponents")
                         st.caption("Training examples with strong negative influence.")
                         
                         df_poison = format_influence_df(potential_poison)
